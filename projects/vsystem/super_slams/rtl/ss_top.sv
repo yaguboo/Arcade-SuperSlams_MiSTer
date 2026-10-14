@@ -215,24 +215,28 @@ module ss_top (
   localparam int V_TOTAL   = 262;
   localparam int V_VISIBLE = 224;
 
+  // ---- the raster outlives the board's reset ------------------------------
+  //
+  // ss_vrst.sv: `rstc` is what every part of the core EXCEPT the raster is held
+  // in (rst, one clock longer); `vrst` is what the raster is held in.  The
+  // raster -- pixel enable, ss_crtc, the sync/blank output pipe -- keeps running
+  // while MiSTer holds RESET for the ROM download, so the OSD loading bar has a
+  // picture to be drawn on and an analog monitor keeps its sync.
+  wire rstc, vrst;
+  ss_vrst u_vrst (.clk(clk), .rst(rst), .pll_locked(pll_locked),
+                  .rstc(rstc), .vrst(vrst));
+
   // ---- pixel clock enable ------------------------------------------------
   //
-  // 315/2112 of 48 MHz.  Both terms are exact: 315/22 MHz is the NTSC colour
-  // subcarrier relationship the PCB's 14.31818 crystal is, and 2112 = 22*96.
-  reg [11:0] pixacc;
-  reg        ce_pix_r;
-  always @(posedge clk) begin
-    if (rst) begin
-      pixacc   <= 12'd0;
-      ce_pix_r <= 1'b0;
-    end else if (pixacc + 12'd315 >= 12'd2112) begin
-      pixacc   <= pixacc + 12'd315 - 12'd2112;
-      ce_pix_r <= 1'b1;
-    end else begin
-      pixacc   <= pixacc + 12'd315;
-      ce_pix_r <= 1'b0;
-    end
-  end
+  // 315/2112 of 48 MHz, restarted from a fixed phase at the end of every line
+  // so a line is exactly 3057 clocks.  Both terms are exact: 315/22 MHz is the
+  // NTSC colour subcarrier relationship the PCB's 14.31818 crystal is, and
+  // 2112 = 22*96.  Why the restart: ss_pixen.sv.
+  wire [8:0] hcnt, vcnt;
+  wire       ce_pix_r;
+  ss_pixen #(.H_TOTAL(H_TOTAL)) u_pixen (
+      .clk(clk), .rst(vrst), .hcnt(hcnt), .ce_pix(ce_pix_r)
+  );
   assign ce_pix = ce_pix_r;
 
   wire ce_en = ~dl_active & ~pause & pll_locked;
@@ -249,7 +253,6 @@ module ss_top (
   wire cpu_rst = dl_active | ~pll_locked;
 
   // ---- video -------------------------------------------------------------
-  wire [8:0] hcnt, vcnt;
   assign dbg_hcnt = hcnt;
   assign dbg_vcnt = vcnt;
   wire       hb_i, vb_i, hs_i, vs_i, vsa_i, vblank_start, line_start;
@@ -265,7 +268,7 @@ module ss_top (
   reg  [15:0] roz_ovr_p, fg_ovr_p;
   reg  [15:0] roz_ovr_f, fg_ovr_f;
   always @(posedge clk) begin
-    if (rst) begin
+    if (rstc) begin
       roz_ovr_p <= 16'd0; fg_ovr_p <= 16'd0;
       roz_ovr_f <= 16'd0; fg_ovr_f <= 16'd0;
     end else if (vblank_start) begin
@@ -290,7 +293,7 @@ module ss_top (
       .H_TOTAL(H_TOTAL), .H_VISIBLE(H_VISIBLE),
       .V_TOTAL(V_TOTAL), .V_VISIBLE(V_VISIBLE)
   ) u_video (
-      .clk(clk), .rst(rst), .ce_pix(ce_pix_r),
+      .clk(clk), .rst(rstc), .vrst(vrst), .ce_pix(ce_pix_r),
       .hcnt(hcnt), .vcnt(vcnt),
       .hblank(hb_i), .vblank(vb_i), .hsync(hs_i), .vsync(vs_i), .vsync_ahead(vsa_i),
       .vblank_start(vblank_start), .line_start(line_start),
@@ -318,7 +321,7 @@ module ss_top (
   wire iack_stb;
   reg  vbl_irq, iack_q, vb_d;
   always @(posedge clk) begin
-    if (rst) begin
+    if (rstc) begin
       vbl_irq <= 1'b0;
       iack_q  <= 1'b0;
       vb_d    <= 1'b0;
@@ -355,7 +358,7 @@ module ss_top (
   wire [7:0]  port_g;
 
   ss_main u_main (
-      .clk(clk), .rst(rst), .cpu_rst(cpu_rst), .ce_en(ce_en),
+      .clk(clk), .rst(rstc), .cpu_rst(cpu_rst), .ce_en(ce_en),
       .rom_addr(cpu_rom_a), .rom_req(cpu_rom_req),
       .rom_ack(cpu_rom_ack), .rom_data(mem_dout),
       .vblank_irq(vbl_irq), .iack_stb(iack_stb),
@@ -394,7 +397,7 @@ module ss_top (
   wire        roz_ack, fg_ack, spr_ack;
 
   ss_roz #(.H_VISIBLE(H_VISIBLE), .BGTILES_BASE_W(BGTILES_BASE_W)) u_roz (
-      .clk(clk), .rst(rst),
+      .clk(clk), .rst(rstc),
       .start(render_start), .sline(render_line), .busy(),
       .ce_pix(ce_pix_r), .hcnt(hcnt), .hsync(hs_i), .vsync_ahead(vsa_i),
       .ctrl_we(psac_ctrl_we), .ctrl_a(psac_ctrl_a),
@@ -410,7 +413,7 @@ module ss_top (
   );
 
   ss_fgmap #(.H_VISIBLE(H_VISIBLE), .FGTILES_BASE_W(FGTILES_BASE_W)) u_fg (
-      .clk(clk), .rst(rst),
+      .clk(clk), .rst(rstc),
       .start(render_start), .sline(render_line[7:0]), .busy(),
       .vram_addr(fgv_addr), .vram_data(fgv_q),
       .scrollx(fg_scrollx), .screen_bank(screen_bank), .flip(1'b0),
@@ -421,7 +424,7 @@ module ss_top (
   );
 
   ss_sprite #(.H_VISIBLE(H_VISIBLE), .SPRITES_BASE_W(SPRITES_BASE_W)) u_spr (
-      .clk(clk), .rst(rst),
+      .clk(clk), .rst(rstc),
       .start(render_start), .sline(render_line), .busy(),
       .sram_addr(spr_addr), .sram_data(spr_q),
       .lut_addr(lut_addr), .lut_data(lut_q),
@@ -446,7 +449,7 @@ module ss_top (
   wire [19:1] pcmb_a;  wire pcmb_req, pcmb_ack;
 
   ss_sound u_sound (
-      .clk(clk), .rst(rst | ~pll_locked), .rom_rst(~pll_locked),
+      .clk(clk), .rst(rstc | ~pll_locked), .rom_rst(~pll_locked),
       .ce_en(ce_en), .frame(vblank_start),
       .rom_we(dl_in_snd & dl_req & arb_ack[0]),
       .rom_wa(dl_addr[15:0] - AUDIOCPU_BASE_W[15:0]),
@@ -573,7 +576,7 @@ module ss_top (
   // scanline of slack does not get to interrupt one with 72 clocks.
   reg [6:0] pcma_wait;
   always @(posedge clk) begin
-    if (rst || !pcma_req || pcma_ack) pcma_wait <= 7'd0;
+    if (rstc || !pcma_req || pcma_ack) pcma_wait <= 7'd0;
     else if (pcma_wait != 7'd127)     pcma_wait <= pcma_wait + 7'd1;
   end
   wire pcma_urgent = pcma_req && (pcma_wait >= 7'd32);

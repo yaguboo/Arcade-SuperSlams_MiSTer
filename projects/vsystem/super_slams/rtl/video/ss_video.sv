@@ -48,7 +48,12 @@ module ss_video #(
     parameter int V_VISIBLE = 224
 ) (
     input  wire        clk,
+    // `rst` holds the layer engines and the colour output.  `vrst` holds ONLY
+    // the raster (ss_crtc and the sync/blank output pipe), which keeps running
+    // through the board's reset so the OSD loading bar has a picture to be drawn
+    // on -- ss_vrst.sv.  Both come out of reset on the same clock.
     input  wire        rst,
+    input  wire        vrst,
     input  wire        ce_pix,
 
     // --- CRTC out ---------------------------------------------------------
@@ -93,16 +98,26 @@ module ss_video #(
     output reg  [15:0] dbg_render_cnt
 );
 
+  wire ls_raw, vbs_raw;
   ss_crtc #(
       .H_TOTAL(H_TOTAL), .H_VISIBLE(H_VISIBLE),
       .V_TOTAL(V_TOTAL), .V_VISIBLE(V_VISIBLE)
   ) u_crtc (
-      .clk(clk), .rst(rst), .ce_pix(ce_pix),
+      .clk(clk), .rst(vrst), .ce_pix(ce_pix),
       .hcnt(hcnt), .vcnt(vcnt),
       .hblank(hblank), .vblank(vblank), .hsync(hsync), .vsync(vsync),
       .vsync_ahead(vsync_ahead),
-      .visible(), .vblank_start(vblank_start), .line_start(line_start)
+      .visible(), .vblank_start(vbs_raw), .line_start(ls_raw)
   );
+
+  // The raster now runs while the rest of the core is held, so its pulses are
+  // masked by `rst`: every consumer of line_start / vblank_start (render
+  // trigger, vblank interrupt, the arbiter's per-line statistics, the sound and
+  // SDRAM frame counters) was written for a CRTC that never pulses during a
+  // reset, and must not see one.  They are registered one clock after the ce
+  // that made them, so the mask is on the same clock they are used.
+  assign line_start   = ls_raw  & ~rst;
+  assign vblank_start = vbs_raw & ~rst;
 
   // ---- one line ahead ----------------------------------------------------
   //
@@ -193,6 +208,8 @@ module ss_video #(
   // "corrected" to compensate.
   reg hs_d1, vs_d1, hb_d1, vb_d1;
 
+  // The colour is held at black by `rst` -- during a reset the picture is a
+  // black raster with sync, which is what the loading bar is drawn on.
   always @(posedge clk) begin
     if (rst) begin
       red <= 8'd0; green <= 8'd0; blue <= 8'd0;
@@ -204,7 +221,17 @@ module ss_video #(
       red   <= (hb_d1 | vb_d1) ? 8'd0 : {pal_data[ 4: 0], pal_data[ 4: 2]};
       green <= (hb_d1 | vb_d1) ? 8'd0 : {pal_data[14:10], pal_data[14:12]};
       blue  <= (hb_d1 | vb_d1) ? 8'd0 : {pal_data[ 9: 5], pal_data[ 9: 7]};
+    end
+  end
 
+  // The sync / blank pipe follows the raster, so it is held by `vrst` and NOT
+  // by `rst`.  (It was not reset at all before, which left hs/vs frozen at
+  // their last value for the whole of any reset.)
+  always @(posedge clk) begin
+    if (vrst) begin
+      {hs_d1, vs_d1, hb_d1, vb_d1} <= 4'b0;
+      {hs,    vs,    hb,    vb   } <= 4'b0;
+    end else if (ce_pix) begin
       {hs_d1, vs_d1, hb_d1, vb_d1} <= {hsync, vsync, hblank, vblank};
       {hs,    vs,    hb,    vb   } <= {hs_d1, vs_d1, hb_d1, vb_d1};
     end

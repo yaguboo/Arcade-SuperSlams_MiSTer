@@ -52,6 +52,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/ss_memarb.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/ss_romcache.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/ss_dpram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/ss_crtc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/ss_pixen.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/ss_vrst.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/ss_io.sv
 # ---- KONAMI 053936 (jt053936, GPL-3.0-or-later, (c) Jose Tejada Gomez) ----
 # Vendored UNMODIFIED -- third_party/video/jt053936/UPSTREAM.yml.  Listed as
