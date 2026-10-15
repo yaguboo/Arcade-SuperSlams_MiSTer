@@ -30,7 +30,7 @@ Video System Co., 1995)를 MiSTer FPGA 에서 돌리기 위한 아케이드 코�
 
 | MAME set | 공식 명칭 | 상태 |
 |---|---|---|
-| `suprslam` | From TV Animation Slam Dunk - Super Slams | 1차 완성. MiSTer 실기에서 코인 투입 → 팀 선택 → 경기 → 컨티뉴까지 플레이 확인, 어트랙트 화면 4 프레임이 MAME 와 픽셀 단위로 일치 |
+| `suprslam` | From TV Animation Slam Dunk - Super Slams | MiSTer 실기에서 세 순위표의 점수 표시, 팀 선택, 경기 진입 및 경기 HUD 확인 |
 
 MAME 드라이버에는 이 세트 하나만 있습니다. 배포용 `.mra` 는 `Super Slams.mra`
 입니다.
@@ -98,6 +98,13 @@ platforms/mister/sys/                MiSTer framework (Template_MiSTer)
 문서와 측정·분석 도구는 이 배포본에 포함하지 않았습니다. 빌드에는 영향이 없습니다.
 
 ## 작업 내역
+
+### 2026-10-16 — 순위표 점수 가림 수정 (v0.9.2)
+
+- POINT / SLAMDUNK / 3POINT 순위표에서 캐릭터 그림이 점수를 가리던 문제를 수정했습니다. 게임은 VS9209 G 포트의 3번 비트로 순위표 동안 스프라이트를 FG 그림 앞에 표시합니다. 기존 코어가 MAME와 같이 잘못된 H 포트를 사용해 순서 전환을 놓쳤습니다.
+- 순위가 끝나면 경기 중 HUD가 다시 앞에 오도록 같은 신호로 복원합니다. 실제 MiSTer에서 세 순위표, TEAM SELECT, VS 화면과 P1 경기를 확인했습니다.
+- 회귀 검사: 우선순위·주소 디코드 15항목, FG 5,120픽셀, 스프라이트 8,640픽셀, 053936 배경 3,440,640픽셀 모두 통과했습니다. 일부러 넣은 reset·hsync 오류도 검출했습니다.
+- RBF SHA256: `2d0b23fe045fa4071b3be28353ccdc6c94da32f34a66cb8561f55ee528a3bb76`.
 
 ### 2026-10-15 — CRT 화면 흔들림 수정, ROM 로딩 중 화면 신호 유지
 

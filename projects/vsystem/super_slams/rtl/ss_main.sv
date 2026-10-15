@@ -58,7 +58,7 @@ module ss_main (
 
     // --- VS9209 inputs ----------------------------------------------------
     input  wire [7:0]  p1, p2, sys_in, dsw1, dsw2,
-    output wire [3:0]  spr_ctrl,
+    output wire [3:0]  spr_ctrl,        // VS9209 G[3:0]; bit 3 is sprite/FG priority
     output wire [7:0]  port_g,
 
     // --- sound latch ------------------------------------------------------
@@ -522,8 +522,15 @@ module ss_main (
       .cs(sel_io), .we(wr1 & sel_io & ds[0]), .a(cpu_a[4:1]),
       .din(cpu_do[7:0]), .dout(io_q),
       .p1(p1), .p2(p2), .system(sys_in), .dsw1(dsw1), .dsw2(dsw2),
-      .port_h(spr_ctrl), .port_g(port_g), .port_f()
+      .port_h(), .port_g(port_g), .port_f()
   );
+
+  // The game drives priority on PORT G, not H as suprslam.cpp assumes.
+  // At boot it writes G's direction = 0x78 (0xFFF01D). At ranking entry
+  // (frame 5471) it writes G = 0x08 (0xFFF00D), then restores 0x00 on exit.
+  // H remains an input. Reading H left portraits above the score forever.
+  // Measured game behaviour, not a PCB trace: DEBUG_LOG O19.
+  assign spr_ctrl = port_g[3:0];
 
   // ---- snoop on 0xFD1020 -------------------------------------------------
   // Work RAM is 32768 words and 0xFD1020 is word 0x810 inside it.

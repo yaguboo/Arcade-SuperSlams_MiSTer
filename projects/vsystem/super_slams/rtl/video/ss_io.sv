@@ -59,8 +59,8 @@ module ss_io (
     input  wire [7:0]  dsw2,
 
     // --- outputs ----------------------------------------------------------
-    output wire [3:0]  port_h,          // spr_ctrl; bit 3 swaps sprites/FG
-    output wire [7:0]  port_g,          // UNKNOWN -- HARDWARE H3
+    output wire [3:0]  port_h,          // four-bit port, unused by the mixer
+    output wire [7:0]  port_g,          // bit 3 swaps sprites/FG; DEBUG_LOG O19
     output wire [7:0]  port_f
 );
 

@@ -9,10 +9,9 @@
 //      FG "screen" tilemap            transparent pen 15
 //      if  (spr_ctrl & 8)  sprites
 //
-//  spr_ctrl is 0 for every frame measured and MAME cannot change it (the
-//  VS9209 direction register makes the callback unreachable), so the order on
-//  this board is BG -> sprites -> FG.  The swap is one mux and is implemented,
-//  but nothing we have seen exercises it -- HARDWARE section 4.
+//  The game's VS9209 G[3] selects the swap: 0 during gameplay (HUD on top),
+//  1 during ranking (score sprites above FG portraits). MAME connects H instead
+//  and never sees the swap. ss_main supplies the actual G outputs; DEBUG_LOG O19.
 //
 //  ---- the palette is xGBR555, NOT xRGB555 ------------------------------
 //
@@ -82,7 +81,7 @@ module ss_video #(
     output reg  [10:0] pal_addr,
     input  wire [15:0] pal_data,
 
-    input  wire        spr_above_fg,     // spr_ctrl bit 3
+    input  wire        spr_above_fg,     // VS9209 port G bit 3
 
     // --- pixel out --------------------------------------------------------
     output reg  [7:0]  red,

@@ -2,8 +2,8 @@
 //  Super Slams -- the FG "screen" layer: VS920F
 //
 //  64 x 32 tiles of 8x8x4, scrolled horizontally only, drawn ON TOP of
-//  everything (suprslam.cpp:247, and the sprite/FG swap bit that could put
-//  sprites above it is never written -- HARDWARE section 4).
+//  sprites during gameplay. VS9209 G[3] puts sprites above it during ranking
+//  so portraits cannot cover the score. HARDWARE section 4, DEBUG_LOG O19.
 //
 //  TWO THINGS HERE ARE NOT WHAT THEY LOOK LIKE, and both produce a picture:
 //
